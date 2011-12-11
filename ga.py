@@ -24,8 +24,6 @@ from urllib import quote
 from Cookie import SimpleCookie, CookieError
 import uuid
 
-import appConfig
-import ViewMgmt
 
 VERSION = "4.4sh"
 COOKIE_NAME = "__utmmobile"
@@ -122,7 +120,7 @@ def parse_cookie(cookie):
         cookiedict[key] = c.get(key).value
     return cookiedict        
         
-def track_page_view(path):
+def track_page_view(path, env):
     """
     // Track a page view, updates all the cookies and campaign tracker,
     // makes a server side request to Google Analytics and writes the transparent
@@ -161,6 +159,6 @@ def track_page_view(path):
             "&utmac=" + account + \
             "&utmcc=__utma%3D999.999.999.999.999.1%3B" + \
             "&utmvid=" + visitor_id + \
-            "&utmip=" + appConfig.Environment().ipAddress
+            "&utmip=" + env.request.remote_addr
     # dbgMsg("utm_url: " + utm_url)    
     send_request_to_google_analytics(utm_url)

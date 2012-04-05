@@ -39,9 +39,6 @@ GIF_DATA = reduce(lambda x,y: x + struct.pack('B', y),
                    0x00,0x00,0x01,0x00,0x01,0x00,
                    0x00,0x02,0x01,0x44,0x00,0x3b], '')
 
-ACCOUNT = 'UA-1234567-1'
-DOMAIN = 'example.com'
-
 # WHITE GIF:
 # 47 49 46 38 39 61
 # 01 00 01 00 80 ff
@@ -120,7 +117,7 @@ def parse_cookie(cookie):
         cookiedict[key] = c.get(key).value
     return cookiedict
 
-def track_page_view(path, env):
+def track_page_view(path, env, account, domain):
     """
     // Track a page view, updates all the cookies and campaign tracker,
     // makes a server side request to Google Analytics and writes the transparent
@@ -128,14 +125,11 @@ def track_page_view(path, env):
     """
     time_tup = time.localtime(time.time() + COOKIE_USER_PERSISTENCE)
 
-    domain = DOMAIN
-
     # Get the referrer from the utmr parameter, this is the referrer to the
     # page that contains the tracking pixel, not the referrer for tracking
     # pixel.
     document_referer = "-"
     document_path = path
-    account = ACCOUNT
 
     visitor_id = get_visitor_id()
 

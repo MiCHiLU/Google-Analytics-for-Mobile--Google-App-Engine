@@ -12,18 +12,18 @@ Adapted from:
 http://github.com/b1tr0t/Google-Analytics-for-Mobile--python-/blob/master/ga.py
 """
 
-import re
-import logging
-import os
+from Cookie import SimpleCookie, CookieError
 from hashlib import md5
 from random import randint
-import struct
-from google.appengine.api import urlfetch
-import time
 from urllib import quote
-from Cookie import SimpleCookie, CookieError
+import logging
+import os
+import re
+import struct
+import time
 import uuid
 
+from google.appengine.api import urlfetch
 
 VERSION = "4.4sh"
 COOKIE_NAME = "__utmmobile"
@@ -68,7 +68,7 @@ def get_ip(remote_address):
 
 def get_visitor_id():
     """
-     // Generate a visitor id for this hit.
+    // Generate a visitor id for this hit.
     """
     usrKey = str(uuid.uuid4())
     md5String = md5(usrKey).hexdigest()
@@ -82,10 +82,10 @@ def get_random_number():
 
 def send_request_to_google_analytics(utm_url):
     """
-  // Make a tracking request to Google Analytics from this server.
-  // Copies the headers from the original request to the new one.
-  // If request containg utmdebug parameter, exceptions encountered
-  // communicating with Google Analytics are thrown.
+    // Make a tracking request to Google Analytics from this server.
+    // Copies the headers from the original request to the new one.
+    // If request containg utmdebug parameter, exceptions encountered
+    // communicating with Google Analytics are thrown.
     """
     headers = {'User-Agent': os.environ.get('HTTP_USER_AGENT', 'Unknown'),
                'Accepts-Language:': os.environ.get("HTTP_ACCEPT_LANGUAGE",'')}
@@ -100,22 +100,6 @@ def send_request_to_google_analytics(utm_url):
             logging.info("IntfGA success: %s(%s)\n%s" % (utm_url, headers, httpresp.headers) )
         else:
             logging.warning("IntfGA fail: %s %d" % (utm_url, httpresp.status_code) )
-
-def parse_cookie(cookie):
-    """ borrowed from django.http """
-    if cookie == '':
-        return {}
-    try:
-        c = SimpleCookie()
-        c.load(cookie)
-    except CookieError:
-        # Invalid cookie
-        return {}
-
-    cookiedict = {}
-    for key in c.keys():
-        cookiedict[key] = c.get(key).value
-    return cookiedict
 
 def track_page_view(path, env, account, domain):
     """

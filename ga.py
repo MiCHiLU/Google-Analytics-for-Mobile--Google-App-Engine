@@ -1,5 +1,5 @@
 """
-Google App Engine implementation of ga.php.  
+Google App Engine implementation of ga.php.
 
 Original Google Analytics Reference:
 http://code.google.com/mobile/analytics/docs/web/
@@ -10,8 +10,8 @@ On http://www.google.com/support/conversionuniversity/bin/static.py?hl=en&page=i
 
 Adapted from:
 http://github.com/b1tr0t/Google-Analytics-for-Mobile--python-/blob/master/ga.py
-    
 """
+
 import re
 import logging
 import os
@@ -30,34 +30,34 @@ COOKIE_NAME = "__utmmobile"
 COOKIE_PATH = "/"
 COOKIE_USER_PERSISTENCE = 63072000
 
-GIF_DATA = reduce(lambda x,y: x + struct.pack('B', y), 
+GIF_DATA = reduce(lambda x,y: x + struct.pack('B', y),
                   [0x47,0x49,0x46,0x38,0x39,0x61,
                    0x01,0x00,0x01,0x00,0x80,0x00,
                    0x00,0x00,0x00,0x00,0xff,0xff,
                    0xff,0x21,0xf9,0x04,0x01,0x00,
                    0x00,0x00,0x00,0x2c,0x00,0x00,
-                   0x00,0x00,0x01,0x00,0x01,0x00, 
+                   0x00,0x00,0x01,0x00,0x01,0x00,
                    0x00,0x02,0x01,0x44,0x00,0x3b], '')
 
 ACCOUNT = 'UA-1234567-1'
 DOMAIN = 'example.com'
 
 # WHITE GIF:
-# 47 49 46 38 39 61 
-# 01 00 01 00 80 ff 
-# 00 ff ff ff 00 00 
-# 00 2c 00 00 00 00 
-# 01 00 01 00 00 02 
-# 02 44 01 00 3b                                       
+# 47 49 46 38 39 61
+# 01 00 01 00 80 ff
+# 00 ff ff ff 00 00
+# 00 2c 00 00 00 00
+# 01 00 01 00 00 02
+# 02 44 01 00 3b
 
 # TRANSPARENT GIF:
-# 47 49 46 38 39 61 
-# 01 00 01 00 80 00 
-# 00 00 00 00 ff ff 
-# ff 21 f9 04 01 00 
-# 00 00 00 2c 00 00 
-# 00 00 01 00 01 00 
-# 00 02 01 44 00 3b                  
+# 47 49 46 38 39 61
+# 01 00 01 00 80 00
+# 00 00 00 00 ff ff
+# ff 21 f9 04 01 00
+# 00 00 00 2c 00 00
+# 00 00 01 00 01 00
+# 00 02 01 44 00 3b
 
 def get_ip(remote_address):
     # dbgMsg("remote_address: " + str(remote_address))
@@ -88,7 +88,7 @@ def send_request_to_google_analytics(utm_url):
   // Make a tracking request to Google Analytics from this server.
   // Copies the headers from the original request to the new one.
   // If request containg utmdebug parameter, exceptions encountered
-  // communicating with Google Analytics are thrown.    
+  // communicating with Google Analytics are thrown.
     """
     headers = {'User-Agent': os.environ.get('HTTP_USER_AGENT', 'Unknown'),
                'Accepts-Language:': os.environ.get("HTTP_ACCEPT_LANGUAGE",'')}
@@ -98,12 +98,12 @@ def send_request_to_google_analytics(utm_url):
                    headers =  headers
                    )
     doLogging = False
-    if doLogging:     
+    if doLogging:
         if httpresp.status_code == 200:
             logging.info("IntfGA success: %s(%s)\n%s" % (utm_url, headers, httpresp.headers) )
         else:
-            logging.warning("IntfGA fail: %s %d" % (utm_url, httpresp.status_code) )            
-        
+            logging.warning("IntfGA fail: %s %d" % (utm_url, httpresp.status_code) )
+
 def parse_cookie(cookie):
     """ borrowed from django.http """
     if cookie == '':
@@ -118,32 +118,32 @@ def parse_cookie(cookie):
     cookiedict = {}
     for key in c.keys():
         cookiedict[key] = c.get(key).value
-    return cookiedict        
-        
+    return cookiedict
+
 def track_page_view(path, env):
     """
     // Track a page view, updates all the cookies and campaign tracker,
     // makes a server side request to Google Analytics and writes the transparent
     // gif byte data to the response.
-    """    
+    """
     time_tup = time.localtime(time.time() + COOKIE_USER_PERSISTENCE)
-    
+
     domain = DOMAIN
-            
+
     # Get the referrer from the utmr parameter, this is the referrer to the
     # page that contains the tracking pixel, not the referrer for tracking
-    # pixel.    
+    # pixel.
     document_referer = "-"
     document_path = path
-    account = ACCOUNT      
+    account = ACCOUNT
 
     visitor_id = get_visitor_id()
-    
+
     # // Always try and add the cookie to the response.
     cookie = SimpleCookie()
     cookie[COOKIE_NAME] = visitor_id
     morsel = cookie[COOKIE_NAME]
-    morsel['expires'] = time.strftime('%a, %d-%b-%Y %H:%M:%S %Z', time_tup) 
+    morsel['expires'] = time.strftime('%a, %d-%b-%Y %H:%M:%S %Z', time_tup)
     morsel['path'] = COOKIE_PATH
 
     utm_gif_location = "http://www.google-analytics.com/__utm.gif"
@@ -160,5 +160,5 @@ def track_page_view(path, env):
             "&utmcc=__utma%3D999.999.999.999.999.1%3B" + \
             "&utmvid=" + visitor_id + \
             "&utmip=" + env.request.remote_addr
-    # dbgMsg("utm_url: " + utm_url)    
+    # dbgMsg("utm_url: " + utm_url)
     send_request_to_google_analytics(utm_url)

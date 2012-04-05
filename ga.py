@@ -137,6 +137,6 @@ def track_page_view(path, env, account, domain):
             "&utmac=" + account + \
             "&utmcc=__utma%3D999.999.999.999.999.1%3B" + \
             "&utmvid=" + visitor_id + \
-            "&utmip=" + env.request.remote_addr
+            "&utmip=" + get_ip(env.request.remote_addr)
     # dbgMsg("utm_url: " + utm_url)
     send_request_to_google_analytics(utm_url)

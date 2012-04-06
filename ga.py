@@ -12,131 +12,133 @@ Adapted from:
 http://github.com/b1tr0t/Google-Analytics-for-Mobile--python-/blob/master/ga.py
 """
 
-from Cookie import SimpleCookie, CookieError
 from hashlib import md5
-from random import randint
-from urllib import quote
-import logging
-import os
+import random
+import urllib
 import re
-import struct
-import time
 import uuid
 
 from google.appengine.api import urlfetch
+from google.appengine.ext import deferred
 
+# Tracker version.
 VERSION = "4.4sh"
+
 COOKIE_NAME = "__utmmobile"
+
+# The path the cookie will be available to, edit this to use a different
+# cookie path.
 COOKIE_PATH = "/"
+
+# Two years in seconds.
 COOKIE_USER_PERSISTENCE = 63072000
 
-GIF_DATA = reduce(lambda x,y: x + struct.pack('B', y),
-                  [0x47,0x49,0x46,0x38,0x39,0x61,
-                   0x01,0x00,0x01,0x00,0x80,0x00,
-                   0x00,0x00,0x00,0x00,0xff,0xff,
-                   0xff,0x21,0xf9,0x04,0x01,0x00,
-                   0x00,0x00,0x00,0x2c,0x00,0x00,
-                   0x00,0x00,0x01,0x00,0x01,0x00,
-                   0x00,0x02,0x01,0x44,0x00,0x3b], '')
+reGetIP = re.compile('^([^.]+\.[^.]+\.[^.]+\.).*')
 
-# WHITE GIF:
-# 47 49 46 38 39 61
-# 01 00 01 00 80 ff
-# 00 ff ff ff 00 00
-# 00 2c 00 00 00 00
-# 01 00 01 00 00 02
-# 02 44 01 00 3b
+def get_ip(remote_address=None):
+    """ The last octect of the IP address is removed to anonymize the user.
 
-# TRANSPARENT GIF:
-# 47 49 46 38 39 61
-# 01 00 01 00 80 00
-# 00 00 00 00 ff ff
-# ff 21 f9 04 01 00
-# 00 00 00 2c 00 00
-# 00 00 01 00 01 00
-# 00 02 01 44 00 3b
-
-def get_ip(remote_address):
-    # dbgMsg("remote_address: " + str(remote_address))
-    if not remote_address:
+    # Capture the first three octects of the IP address and replace the forth
+    # with 0, e.g. 124.455.3.123 becomes 124.455.3.0
+    >>> get_ip("124.455.3.123")
+    '124.455.3.0'
+    """
+    if remote_address is None:
         return ""
-    matches = re.match('^([^.]+\.[^.]+\.[^.]+\.).*', remote_address)
-    if matches:
-        return matches.groups()[0] + "0"
+    matches = reGetIP.match(remote_address)
+    if not matches:
+        return ""
+    return "%s0" % matches.groups()[0]
+
+def get_visitor_id(guid, account, user_agent, cookie=None):
+    """ Generate a visitor id for this hit.
+
+    If there is a visitor id in the cookie, use that, otherwise
+    use the guid if we have one, otherwise use a random number.
+    """
+    # If there is a value in the cookie, don't change it.
+    if cookie is not cookie:
+      return cookie
+
+    if guid:
+      # Create the visitor id using the guid.
+      message = "".join((guid, account))
     else:
-        return ""
+      # otherwise this is a new user, create a new random id.
+      message = "".join((user_agent, str(uuid.uuid4())))
 
-def get_visitor_id():
+    return "0x%s" % md5(message).hexdigest()[:16]
+
+class GoogleAnalyticsMixin(object):
+    """ Google analytics mix-in for webapp2 request handler
+
+    Usage: add dispatch method to RequestHandler as follows,
+
+    class RequestHandler(webapp2.RequestHandler, GoogleAnalyticsMixin):
+        def dispatch(self):
+            if uamobile.is_featurephone(self.request.headers.get('User-Agent', "")):
+                self._google_analytics_tracking(account=config.GA_ACCOUNT, debug=config.DEBUG)
+            return super(RequestHandler, self).dispatch()
     """
-    // Generate a visitor id for this hit.
-    """
-    usrKey = str(uuid.uuid4())
-    md5String = md5(usrKey).hexdigest()
-    return "0x" + md5String[:16]
 
-def get_random_number():
-    """
-    // Get a random number string.
-    """
-    return str(randint(0, 0x7fffffff))
+    def _google_analytics_tracking(self, account, debug=False):
+        """
+        Track a page view, updates all the cookies and campaign tracker,
+        makes a server side request to Google Analytics and writes the transparent
+        gif byte data to the response.
+        """
+        domain_name = self.request.headers.get("Host", "")
 
-def send_request_to_google_analytics(utm_url):
-    """
-    // Make a tracking request to Google Analytics from this server.
-    // Copies the headers from the original request to the new one.
-    // If request containg utmdebug parameter, exceptions encountered
-    // communicating with Google Analytics are thrown.
-    """
-    headers = {'User-Agent': os.environ.get('HTTP_USER_AGENT', 'Unknown'),
-               'Accepts-Language:': os.environ.get("HTTP_ACCEPT_LANGUAGE",'')}
-    httpresp = urlfetch.fetch(
-                   url      = utm_url,
-                   method   = urlfetch.GET,
-                   headers =  headers
-                   )
-    doLogging = False
-    if doLogging:
-        if httpresp.status_code == 200:
-            logging.info("IntfGA success: %s(%s)\n%s" % (utm_url, headers, httpresp.headers) )
-        else:
-            logging.warning("IntfGA fail: %s %d" % (utm_url, httpresp.status_code) )
+        document_referer = self.request.headers.get("Referer", "-")
+        document_path = self.request.environ.get("PATH_INFO", "")
+        user_agent = self.request.headers.get("User-Agent", "Unknown")
 
-def track_page_view(path, env, account, domain):
-    """
-    // Track a page view, updates all the cookies and campaign tracker,
-    // makes a server side request to Google Analytics and writes the transparent
-    // gif byte data to the response.
-    """
-    time_tup = time.localtime(time.time() + COOKIE_USER_PERSISTENCE)
+        # Try and get visitor cookie from the request.
+        cookie = self.request.cookies.get(COOKIE_NAME)
 
-    # Get the referrer from the utmr parameter, this is the referrer to the
-    # page that contains the tracking pixel, not the referrer for tracking
-    # pixel.
-    document_referer = "-"
-    document_path = path
+        guid_header = None
+        for header_name in ("X-DCMGUID", "X-UP-SUBNO", "X-JPHONE-UID", "X-EM-UID"):
+            guid_header = self.request.headers.get(header_name)
+            if guid_header is not None:
+                break
 
-    visitor_id = get_visitor_id()
+        visitor_id = get_visitor_id(guid_header, account, user_agent, cookie)
 
-    # // Always try and add the cookie to the response.
-    cookie = SimpleCookie()
-    cookie[COOKIE_NAME] = visitor_id
-    morsel = cookie[COOKIE_NAME]
-    morsel['expires'] = time.strftime('%a, %d-%b-%Y %H:%M:%S %Z', time_tup)
-    morsel['path'] = COOKIE_PATH
+        # Always try and add the cookie to the response.
+        self.response.set_cookie(COOKIE_NAME, visitor_id,
+                                 max_age=COOKIE_USER_PERSISTENCE,
+                                 path=COOKIE_PATH)
 
-    utm_gif_location = "http://www.google-analytics.com/__utm.gif"
+        utm_gif_location = "http://www.google-analytics.com/__utm.gif"
 
-    utm_url = utm_gif_location + "?" + \
-            "utmwv=" + VERSION + \
-            "&utmn=" + get_random_number() + \
-            "&utmhn=" + quote(domain) + \
-            "&utmsr=" + '-' + \
-            "&utme=" + '-' + \
-            "&utmr=" + quote(document_referer) + \
-            "&utmp=" + quote(document_path) + \
-            "&utmac=" + account + \
-            "&utmcc=__utma%3D999.999.999.999.999.1%3B" + \
-            "&utmvid=" + visitor_id + \
-            "&utmip=" + get_ip(env.request.remote_addr)
-    # dbgMsg("utm_url: " + utm_url)
-    send_request_to_google_analytics(utm_url)
+        # Construct the gif hit url.
+        params = dict(
+            utmwv=VERSION,
+            utmn=random.randint(0, 0x7fffffff),
+            utmhn=domain_name,
+            utmr=document_referer,
+            utmp=document_path,
+            utmac=account,
+            utmcc="__utma%3D999.999.999.999.999.1%3B",
+            utmvid=visitor_id,
+            utmip=get_ip(self.request.remote_addr),
+        )
+        utm_url = "?".join((utm_gif_location, urllib.urlencode(params)))
+        headers = {"User-Agent": user_agent,
+                   "Accepts-Language": self.request.headers.get("Accepts-Language", "")}
+        if debug:
+            import logging
+            logging.info("GoogleAnalyticsMixin._google_analytics_tracking: %s, %s" % (utm_url, headers))
+            return
+        deferred.defer(self.__class__._send_request_to_google_analytics, utm_url, headers)
+
+    @classmethod
+    def _send_request_to_google_analytics(cls, utm_url, headers):
+        """ Make a tracking request to Google Analytics from this server.
+
+        Copies the headers from the original request to the new one.
+        If request containg utmdebug parameter, exceptions encountered
+        communicating with Google Analytics are thrown.
+        """
+        response = urlfetch.fetch(utm_url, headers=headers)
+        assert response.status_code == 200

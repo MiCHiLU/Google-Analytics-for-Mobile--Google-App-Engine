@@ -18,8 +18,7 @@ import urllib
 import re
 import uuid
 
-from google.appengine.api import urlfetch
-from google.appengine.ext import deferred
+from google.appengine.ext import deferred, ndb
 
 # Tracker version.
 VERSION = "4.4sh"
@@ -133,6 +132,7 @@ class GoogleAnalyticsMixin(object):
         deferred.defer(self.__class__._send_request_to_google_analytics, utm_url, headers)
 
     @classmethod
+    @ndb.toplevel
     def _send_request_to_google_analytics(cls, utm_url, headers):
         """ Make a tracking request to Google Analytics from this server.
 
@@ -140,5 +140,5 @@ class GoogleAnalyticsMixin(object):
         If request containg utmdebug parameter, exceptions encountered
         communicating with Google Analytics are thrown.
         """
-        response = urlfetch.fetch(utm_url, headers=headers)
+        response = yield ndb.get_context().urlfetch(utm_url, headers=headers)
         assert response.status_code == 200

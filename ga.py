@@ -127,7 +127,7 @@ class GoogleAnalyticsMixin(object):
                    "Accepts-Language": self.request.headers.get("Accepts-Language", "")}
         if debug:
             import logging
-            logging.info("GoogleAnalyticsMixin._google_analytics_tracking: %s, %s" % (utm_url, headers))
+            logging.warning("GoogleAnalyticsMixin._google_analytics_tracking: %s, %s" % (utm_url, headers))
             return
         deferred.defer(self.__class__._send_request_to_google_analytics, utm_url, headers)
 
